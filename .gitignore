@@ -1,0 +1,8 @@
+# Dependencies (this project has none — it is a pure static site with no build step)
+node_modules/
+
+# macOS
+.DS_Store
+
+# Agent / tooling state
+.omc/

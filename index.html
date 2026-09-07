@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0d1117">
+<meta name="color-scheme" content="dark">
+<meta name="description" content="Warpath Command — an offline single-player base-building and world-map strategy game.">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Warpath Command</title>
+<link rel="stylesheet" href="./css/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' fill='%230d1117'/%3E%3Cpath d='M3 21V10l9-7 9 7v11h-6v-6H9v6H3Z' fill='%23f0a500'/%3E%3C/svg%3E">
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="./icon.svg">
+<meta name="apple-mobile-web-app-title" content="Warpath">
+
+<!--
+  Every module boot loads, declared up front. Without these the graph loads as a
+  ~15-deep dependent request waterfall, which on a cellular link costs seconds
+  before the splash can come down. A NEW MODULE FILE MUST BE ADDED HERE — a
+  missing entry degrades silently (it just falls back to the waterfall).
+-->
+<link rel="modulepreload" href="./js/main.js">
+<link rel="modulepreload" href="./js/util/dom.js">
+<link rel="modulepreload" href="./js/util/events.js">
+<link rel="modulepreload" href="./js/util/fmt.js">
+<link rel="modulepreload" href="./js/engine/state.js">
+<link rel="modulepreload" href="./js/engine/economy.js">
+<link rel="modulepreload" href="./js/engine/bonus.js">
+<link rel="modulepreload" href="./js/engine/build.js">
+<link rel="modulepreload" href="./js/engine/loop.js">
+<link rel="modulepreload" href="./js/engine/research.js">
+<link rel="modulepreload" href="./js/engine/training.js">
+<link rel="modulepreload" href="./js/engine/worldmap.js">
+<link rel="modulepreload" href="./js/engine/combat.js">
+<link rel="modulepreload" href="./js/engine/officers.js">
+<link rel="modulepreload" href="./js/data/balance.js">
+<link rel="modulepreload" href="./js/data/buildings.js">
+<link rel="modulepreload" href="./js/data/units.js">
+<link rel="modulepreload" href="./js/data/tech.js">
+<link rel="modulepreload" href="./js/data/officers.js">
+<link rel="modulepreload" href="./js/data/campaign.js">
+<link rel="modulepreload" href="./js/ui/registry.js">
+<link rel="modulepreload" href="./js/ui/shell.js">
+<link rel="modulepreload" href="./js/ui/index.js">
+<link rel="modulepreload" href="./js/ui/army.js">
+<link rel="modulepreload" href="./js/ui/research.js">
+<link rel="modulepreload" href="./js/ui/officers.js">
+<link rel="modulepreload" href="./js/ui/campaign.js">
+<link rel="modulepreload" href="./js/ui/settings.js">
+<link rel="modulepreload" href="./js/ui/base.js">
+<link rel="modulepreload" href="./js/ui/map.js">
+<link rel="modulepreload" href="./js/ui/svg.js">
+<link rel="modulepreload" href="./js/ui/svg-art.js">
+</head>
+<body>
+
+<div id="app" class="app">
+
+  <!-- Top HUD (populated by js/ui/shell.js renderHUD) -->
+  <header id="hud" class="hud" role="banner"></header>
+
+  <!-- Active screen (populated by js/main.js router) -->
+  <main id="view" class="view" role="main"></main>
+
+  <!-- Bottom navigation (populated by js/ui/shell.js renderNav) -->
+  <nav id="nav" class="nav" role="navigation" aria-label="Main sections"></nav>
+
+</div>
+
+<!-- Toast layer is created on demand by shell.js -->
+<div id="toasts" class="toast-layer" role="status" aria-live="polite"></div>
+
+<!-- Boot splash, removed by main.js once systems are online -->
+<div id="boot" class="boot">
+  <svg class="boot__mark" viewBox="0 0 24 24" width="64" height="64" aria-hidden="true">
+    <path d="M3 21V10l9-7 9 7v11h-6v-6H9v6H3Z" fill="#f0a500"></path>
+  </svg>
+  <div class="boot__title">WARPATH COMMAND</div>
+  <div class="boot__sub">Establishing uplink&hellip;</div>
+</div>
+
+<noscript>
+  <div class="noscript">Warpath Command needs JavaScript enabled to run.</div>
+</noscript>
+
+<!--
+  Boot failsafe. Deliberately a CLASSIC script (no type="module") so it still
+  runs when the module graph cannot: Chromium/Edge refuse ES modules loaded from
+  file:// (origin "null" fails the CORS check), so js/main.js never executes
+  there. Without this, #boot — an opaque full-screen overlay — would sit on
+  screen forever. It also covers any throw inside boot(), which happens before
+  the splash is removed. main.js calls __warpathBootReady() on success and
+  __warpathBootFailed(msg) on a caught failure, and __warpathBootAlive() as soon
+  as its static module graph has executed.
+-->
+<script>
+(function () {
+  var FAILSAFE_MS = 15000;   // stage 2: the whole module graph on a slow link
+  var ALIVE_MS = 8000;       // stage 1: js/main.js never even executed
+  var timer = 0;
+
+  function splash() { return document.getElementById('boot'); }
+  function state() { return document.documentElement.getAttribute('data-boot'); }
+
+  function ready() {
+    if (timer) { clearTimeout(timer); timer = 0; }
+    document.documentElement.setAttribute('data-boot', 'ready');
+    var el = splash();
+    if (el && el.parentNode) el.parentNode.removeChild(el);
+  }
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+
+  function fail(reason) {
+    if (state() === 'ready' || state() === 'failed') return;
+    if (timer) { clearTimeout(timer); timer = 0; }
+    var box = splash();
+    if (!box) return;
+    document.documentElement.setAttribute('data-boot', 'failed');
+    box.className = 'boot boot--failed';
+    while (box.firstChild) box.removeChild(box.firstChild);
+
+    var fileMode = location.protocol === 'file:';
+    box.appendChild(el('div', 'boot__title', 'UPLINK FAILED'));
+    box.appendChild(el('p', 'boot__err', fileMode
+      ? 'Chrome and Edge refuse to load ES modules from a file:// page, so the game '
+        + 'never started. Serve this folder over http:// instead — from the game folder run '
+        + '"python3 -m http.server 8000" and open http://localhost:8000/ . '
+        + 'Safari and Firefox can open the file directly.'
+      : 'The game engine failed to start. Reloading usually clears it; if it does not, '
+        + 'the save may be corrupt — Settings > Wipe campaign resets it (this deletes progress).'));
+    if (reason) box.appendChild(el('code', 'boot__code', String(reason).slice(0, 300)));
+
+    var row = el('div', 'boot__actions');
+    var reload = el('button', 'btn btn--primary', 'Reload');
+    reload.type = 'button';
+    reload.onclick = function () { location.reload(); };
+    var dismiss = el('button', 'btn btn--ghost', 'Dismiss');
+    dismiss.type = 'button';
+    dismiss.onclick = function () { if (box.parentNode) box.parentNode.removeChild(box); };
+    row.appendChild(reload);
+    row.appendChild(dismiss);
+    box.appendChild(row);
+  }
+
+  // main.js calls this the moment its static graph has executed: the module
+  // layer is alive, so switch from "did it start?" to the longer "is it still
+  // downloading?" budget instead of failing a healthy slow boot.
+  function alive() {
+    if (state()) return;
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(function () {
+      fail('The game engine did not report in within ' + (FAILSAFE_MS / 1000) + ' seconds.');
+    }, FAILSAFE_MS);
+  }
+
+  window.__warpathBootReady = ready;
+  window.__warpathBootFailed = fail;
+  window.__warpathBootAlive = alive;
+
+  window.addEventListener('error', function (e) {
+    if (state()) return;
+    fail((e && (e.message || (e.error && e.error.message))) || 'Script error.');
+  }, true);
+
+  window.addEventListener('unhandledrejection', function (e) {
+    if (state()) return;
+    var r = e && e.reason;
+    fail((r && (r.message || r)) || 'Unhandled promise rejection.');
+  });
+
+  timer = setTimeout(function () {
+    fail('The game engine did not start. Check that all files under js/ were deployed.');
+  }, ALIVE_MS);
+})();
+</script>
+<script type="module" src="./js/main.js"></script>
+</body>
+</html>
